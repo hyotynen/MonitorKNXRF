@@ -1,21 +1,22 @@
 # What to call the final executable
-TARGET = monknxrf.out
+TARGET = monknxrf
 
-OBJS= monitorknxrf.o cc1101.o openhabRESTInterface.o sensorKNXRF.o
+OBJS= monitorknxrf.o cc1101.o sensorKNXRF.o
 
 # What compiler to use
 CC = g++
 
-CFLAGS = -c -Wall -I/home/openhabian/jsmn -Iinclude/
+CFLAGS = -c -Wall -Iinclude/
 
-LDFLAGS = -L/home/openhabian/jsmn
-
-# We need -lcurl for the curl stuff
-LIBS = -lcurl -ljsmn -lwiringPi
+LIBS = -lwiringPi -lsystemd
 
 # Link the target with all objects and libraries
 $(TARGET) : $(OBJS)
-	$(CC)  -o $(TARGET) $(OBJS) $(LDFLAGS) $(LIBS)
-		
+	$(CC)  -o $(TARGET) $(OBJS) $(LIBS)
+
 $(OBJS) : monitorknxrf.cpp
 	$(CC) $(CFLAGS) $< include/*.cpp
+
+.PHONY : clean
+clean :
+	rm -f $(TARGET) $(OBJS)

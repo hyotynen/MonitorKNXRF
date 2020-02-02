@@ -3,12 +3,10 @@
 
 #include <stdint.h>
 
-
 /*----------------------------------[standard]--------------------------------*/
-#define CC1101_TIMEOUT 		2000		// Time to wait for a response from CC1101
+#define CC1101_TIMEOUT           2000		// Time to wait for a response from CC1101
 #define CC1101_BUFFER_LEN        60
 #define CC1101_DATA_LEN          CC1101_BUFFER_LEN - 4
-
 
 //**************************** pins ******************************************//
 #define SS_PIN   10
@@ -207,8 +205,6 @@ class CC1101
         void set_sync_mode(uint8_t cfg);
         void set_datarate(uint8_t mdmcfg4, uint8_t mdmcfg3, uint8_t deviant);
 };
-
-
 
 //=======================[CC1101 special functions]=============================
 

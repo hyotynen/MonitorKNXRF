@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <string>
-#include "openhabRESTInterface.h"
 
 #define MAXSENSORDATA 30
 
@@ -14,7 +13,7 @@
 
 /**
  * Class: SensorKNXRF
- * 
+ *
  * Description:
  * SensorKNXRF data packet class
  */
@@ -46,11 +45,7 @@ class SensorKNXRF
 };
 
 uint8_t manchesterDecode(uint8_t *dataSource, uint8_t *dataDest, int32_t len);
-
 uint8_t saveSensorData(uint8_t* data, uint32_t len, SensorKNXRF *&sensorList);
-
 uint16_t transformTemperature(uint16_t data);
-
-void sendSensorData(SensorKNXRF *&currentSensor, OpenhabItem *itemList);
 
 #endif

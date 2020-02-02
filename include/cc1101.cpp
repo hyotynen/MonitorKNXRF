@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 #include "cc1101.h"
@@ -67,7 +68,7 @@ static uint8_t cc1101_GFSK_1_2_kb[CFG_REGISTER] = {
                     0x3F,  // TEST1         Various Test Settings
                     0x0B   // TEST0         Various Test Settings
                };
-			   
+
 static uint8_t cc1101_2FSK_32_7_kb[CFG_REGISTER] = {
 					0x00,  // IOCFG2        GDO2 Output Pin Configuration
 					0x2E,  // IOCFG1        GDO1 Output Pin Configuration
@@ -75,7 +76,7 @@ static uint8_t cc1101_2FSK_32_7_kb[CFG_REGISTER] = {
 					0x41,  // FIFOTHR       RX FIFO and TX FIFO Thresholds
 					0x76,  // SYNC1         Sync Word
 					0x96,  // SYNC0         Sync Word
-		 CC1101_DATA_LEN,  // PKTLEN        Packet Length
+		 	     CC1101_DATA_LEN,  // PKTLEN        Packet Length
 					0x04,  // PKTCTRL1      Packet Automation Control
 					0x00,  // PKTCTRL0      Packet Automation Control
 					0x00,  // ADDR          Device Address
@@ -116,7 +117,7 @@ static uint8_t cc1101_2FSK_32_7_kb[CFG_REGISTER] = {
 					0x81,  // TEST2         Various Test Settings
 					0x35,  // TEST1         Various Test Settings
 					0x09   // TEST0         Various Test Settings
-               };			   
+               };
 
 static uint8_t cc1101_GFSK_38_4_kb[CFG_REGISTER] = {
                     0x00,  // IOCFG2        GDO2 Output Pin Configuration
@@ -437,7 +438,7 @@ uint8_t CC1101::begin(uint8_t addrCC1101)
     set_debug_level(cc1101_debug);   //set debug level of CC1101 outputs
 
     if(debug_level > 0){
-          printf("Init CC1101...\r\n");
+          syslog(LOG_INFO, "MonitorKNXRF: Init CC1101...");
     }
 
     spi_begin();                          //inits SPI Interface
@@ -459,12 +460,9 @@ uint8_t CC1101::begin(uint8_t addrCC1101)
     }
 
     if(debug_level > 0){
-          printf("Partnumber: 0x%02X\r\n", partnum);
-          printf("Version   : 0x%02X\r\n", version);
+          syslog(LOG_INFO, "MonitorKNXRF: Partnumber: 0x%02X", partnum);
+          syslog(LOG_INFO, "MonitorKNXRF: Version   : 0x%02X", version);
     }
-
-
-
 
     //set modulation mode
     set_mode(cc1101_mode_select);
@@ -482,11 +480,10 @@ uint8_t CC1101::begin(uint8_t addrCC1101)
     set_myaddr(addrCC1101);                  //My_Addr from EEPROM to global variable
 
     if(debug_level > 0){
-          printf("...done!\r\n");
+          syslog(LOG_INFO, "MonitorKNXRF: ...done!");
     }
 
     receive();                                  //set CC1101 in receive mode
-
     return TRUE;
 }
 //-------------------------------[end]------------------------------------------
@@ -508,24 +505,22 @@ void CC1101::show_register_settings(void)
         spi_read_burst(PATABLE_BURST,Patable_verify,8);             //reads output power settings from cc1101
 
         //show_main_settings();
-        printf("Config Register:\r\n");
+        syslog(LOG_INFO, "MonitorKNXRF: Config Register:");
 
         for(uint8_t i = 0 ; i < CFG_REGISTER; i++)  //showes rx_buffer for debug
         {
-            printf("0x%02X ", config_reg_verify[i]);
-            if(i==9 || i==19 || i==29 || i==39) //just for beautiful output style
-            {
-                printf("\r\n");
-            }
+            syslog(LOG_INFO, "MonitorKNXRF: 0x%02X ", config_reg_verify[i]);
+            // if(i==9 || i==19 || i==29 || i==39) //just for beautiful output style
+            // {
+            //     printf("\r\n");
+            // } 
         }
-        printf("\r\n");
-        printf("PaTable:\r\n");
+        syslog(LOG_INFO, "MonitorKNXRF: PaTable:");
 
         for(uint8_t i = 0 ; i < 8; i++)         //showes rx_buffer for debug
         {
-            printf("0x%02X ", Patable_verify[i]);
+            syslog(LOG_INFO, "MonitorKNXRF: 0x%02X ", Patable_verify[i]);
         }
-        printf("\r\n");
     }
 }
 //-------------------------------[end]------------------------------------------
@@ -535,9 +530,9 @@ void CC1101::show_main_settings(void)
 {
      extern uint8_t cc1101_mode_select, cc1101_freq_select, cc1101_channel_select;
 
-     printf("Mode: %d\r\n", cc1101_mode_select);
-     printf("Frequency: %d\r\n", cc1101_freq_select);
-     printf("Channel: %d\r\n", cc1101_channel_select);
+     syslog(LOG_INFO, "MonitorKNXRF: Mode: %d", cc1101_mode_select);
+     syslog(LOG_INFO, "MonitorKNXRF: Frequency: %d", cc1101_freq_select);
+     syslog(LOG_INFO, "MonitorKNXRF: Channel: %d", cc1101_channel_select);
 }
 //-------------------------------[end]------------------------------------------
 
@@ -557,11 +552,11 @@ uint8_t CC1101::sidle(void)
 
     }
 	if(debug_level > 0){
-        printf("marcstate: 0x%02X\r\n", marcstate);
+        syslog(LOG_INFO, "MonitorKNXRF: marcstate: 0x%02X", marcstate);
     }
     if(marcstate != 0x01) {
         if(debug_level > 0){
-            printf("Timeout when trying to set idle state\r\n");
+            syslog(LOG_INFO, "MonitorKNXRF: Timeout when trying to set idle state");
         }
         return FALSE;
     }
@@ -586,11 +581,11 @@ uint8_t CC1101::transmit(void)
         marcstate = (spi_read_register(MARCSTATE) & 0x1F); //read out state of cc1101 to be sure in IDLE and TX is finished
     }
 	if(debug_level > 0){
-        printf("marcstate: 0x%02X\r\n", marcstate);
+        syslog(LOG_INFO, "MonitorKNXRF: marcstate: 0x%02X", marcstate);
     }
     if(marcstate != 0x01) {
         if(debug_level > 0){
-            printf("Timeout when trying to set transmit state\r\n");
+            syslog(LOG_INFO, "MonitorKNXRF: Timeout when trying to set transmit state");
         }
         return FALSE;
     }
@@ -610,16 +605,17 @@ uint8_t CC1101::receive(void)
 
     marcstate = 0xFF;                     //set unknown/dummy state value
 	timeStart = millis();
-    while((marcstate != 0x0D) && ((millis() - timeStart) < CC1101_TIMEOUT))              //0x0D = RX
+    while((marcstate != 0x0D) && ((millis() - timeStart) < (CC1101_TIMEOUT*10)))              //0x0D = RX
     {
         marcstate = (spi_read_register(MARCSTATE) & 0x1F); //read out state of cc1101 to be sure in RX
     }
 	if(debug_level > 0){
-        printf("marcstate: 0x%02X\r\n", marcstate);
+        syslog(LOG_INFO, "MonitorKNXRF: Time to enter receive state: %d ms", (millis() - timeStart));
+        syslog(LOG_INFO, "MonitorKNXRF: marcstate: 0x%02X", marcstate);
     }
     if(marcstate != 0x0D) {
         if(debug_level > 0){
-            printf("Timeout when trying to set receive state\r\n");
+            syslog(LOG_INFO, "MonitorKNXRF: Timeout when trying to set receive state");
         }
         return FALSE;
     }
@@ -631,14 +627,6 @@ uint8_t CC1101::receive(void)
 //------------[enables WOR Mode  EVENT0 ~1890ms; rx_timeout ~235ms]--------------------
 void CC1101::wor_enable()
 {
-/*
-    EVENT1 = WORCTRL[6:4] -> Datasheet page 88
-    EVENT0 = (750/Xtal)*(WOREVT1<<8+WOREVT0)*2^(5*WOR_RES) = (750/26Meg)*65407*2^(5*0) = 1.89s
-                        (WOR_RES=0;RX_TIME=0)               -> Datasheet page 80
-i.E RX_TIMEOUT = EVENT0*       (3.6038)      *26/26Meg = 235.8ms
-                        (WOR_RES=0;RX_TIME=1)               -> Datasheet page 80
-i.E.RX_TIMEOUT = EVENT0*       (1.8029)      *26/26Meg = 117.9ms
-*/
     sidle();
 
     spi_write_register(MCSM0, 0x18);    //FS Autocalibration
@@ -691,12 +679,11 @@ uint8_t CC1101::tx_payload_burst(uint8_t my_addr, uint8_t rx_addr,
     spi_write_burst(TXFIFO_BURST,txbuffer,length); //writes TX_Buffer +1 because of pktlen must be also transfered
 
     if(debug_level > 0){
-        printf("TX_FIFO: ");
+        syslog(LOG_INFO, "MonitorKNXRF: TX_FIFO: ");
         for(uint8_t i = 0 ; i < length; i++)       //TX_fifo debug out
         {
-             printf("0x%02X ", txbuffer[i]);
+             syslog(LOG_INFO, "MonitorKNXRF: 0x%02X ", txbuffer[i]);
         }
-        printf("\r\n");
   }
   return TRUE;
 }
@@ -709,9 +696,9 @@ uint8_t CC1101::rx_payload_burst(uint8_t *rxbuffer, uint8_t &pktLen)
 	uint8_t bytes_to_read = 0;
 	uint8_t bytes_in_RXFIFO_prev = 0;
 	uint32_t rxTimeout;
-	
+
 	if(debug_level > 1){
-		printf("Reading CC1101 \r\n");
+		syslog(LOG_INFO, "MonitorKNXRF: Reading CC1101");
 	}
 
 	rxTimeout = millis();
@@ -723,12 +710,12 @@ uint8_t CC1101::rx_payload_burst(uint8_t *rxbuffer, uint8_t &pktLen)
 		} while (((bytes_in_RXFIFO & 0x7F)!=bytes_in_RXFIFO_prev) && 	// increasing?
 				(!(bytes_in_RXFIFO&0x80)) && 							// overflow?
 				(bytes_in_RXFIFO<(CC1101_BUFFER_LEN/2)));				// is more than half of the fifobuffer filled?
-		
+
 		bytes_to_read = bytes_in_RXFIFO & 0x7F;
 		if ((bytes_in_RXFIFO & 0x80)) // if RX Overflow
 		{
 			if(debug_level > 0){
-				printf("RX Overflow!: 0x%02X \r\n", bytes_in_RXFIFO & 0x7F);
+				syslog(LOG_INFO, "MonitorKNXRF: RX Overflow!: 0x%02X", bytes_in_RXFIFO & 0x7F);
 			}
 			sidle();                                                  //set to IDLE
 			spi_write_strobe(SFRX);delayMicroseconds(100);            //flush RX Buffer
@@ -740,20 +727,20 @@ uint8_t CC1101::rx_payload_burst(uint8_t *rxbuffer, uint8_t &pktLen)
 			if (bytes_to_read > (CC1101_BUFFER_LEN - pktLen)) {
 				bytes_to_read = CC1101_BUFFER_LEN - pktLen; // Check to not overfill buffer
 				if(debug_level > 0){
-					printf("Buffersize error: %d, bytes to read: %d, packetlength: %d \r\n", bytes_in_RXFIFO & 0x7F, bytes_to_read, pktLen);
+					syslog(LOG_INFO, "MonitorKNXRF: Buffersize error: %d, bytes to read: %d, packetlength: %d", bytes_in_RXFIFO & 0x7F, bytes_to_read, pktLen);
 				}
 			}
 			spi_read_burst(RXFIFO_BURST, rxbuffer+pktLen*sizeof(uint8_t), bytes_to_read);
 			pktLen += bytes_to_read;
 			rxTimeout = millis();
 		}
-		
+
 	} while ((pktLen<CC1101_BUFFER_LEN) && ((millis()- rxTimeout) < 20));
-	
+
 	if(debug_level > 1){
-		printf("Read data of length %d \r\n", pktLen);
+		syslog(LOG_INFO, "MonitorKNXRF: Read data of length %d", pktLen);
 	}
-	
+
     return TRUE;
 }
 //-------------------------------[end]------------------------------------------
@@ -770,7 +757,7 @@ uint8_t CC1101::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,
 
     if(pktlen > (FIFOBUFFER - 1))
     {
-        printf("ERROR: package size overflow\r\n");
+        syslog(LOG_ERR, "MonitorKNXRF: ERROR: package size overflow");
         return FALSE;
     }
 
@@ -804,10 +791,10 @@ uint8_t CC1101::sent_packet(uint8_t my_addr, uint8_t rx_addr, uint8_t *txbuffer,
         tx_retries_count++;                                     //increase tx retry counter
 
         if(debug_level > 0){                                    //debug output messages
-            printf(" #:");
-            printf("0x%02X \r\n", tx_retries_count);
+            syslog(LOG_ERR, "MonitorKNXRF:  #:");
+            syslog(LOG_ERR, "MonitorKNXRF: 0x%02X", tx_retries_count);
         }
-    }while(tx_retries_count <= tx_retries);                     //while count of retries is reaches
+    } while(tx_retries_count <= tx_retries);                    //while count of retries is reaches
 
     return FALSE;                                               //sent failed. too many retries
 }
@@ -826,7 +813,7 @@ void CC1101::sent_acknolage(uint8_t my_addr, uint8_t tx_addr)
     receive();                                                  //set CC1101 in receive mode
 
     if(debug_level > 0){                                        //debut output
-        printf("Ack_sent!\r\n");
+        syslog(LOG_INFO, "MonitorKNXRF: Ack_sent!");
     }
 }
 //-------------------------------[end]------------------------------------------
@@ -838,7 +825,7 @@ uint8_t CC1101::packet_available()
         if(spi_read_register(IOCFG2) == 0x06)               //if sync word detect mode is used
         {
             while(digitalRead(GDO2) == TRUE){               //wait till sync word is fully received
-                printf("!\r\n");
+                syslog(LOG_INFO, "MonitorKNXRF: !");
             }                                                  //for sync word receive
         }
 
@@ -884,21 +871,19 @@ uint8_t CC1101::get_payload(uint8_t rxbuffer[], uint8_t &pktlen, uint8_t &my_add
             if(debug_level > 0){                           //debug output messages
                 if(rxbuffer[1] == BROADCAST_ADDRESS)       //if my receiver address is BROADCAST_ADDRESS
                 {
-                    printf("BROADCAST message\r\n");
+                    syslog(LOG_INFO, "MonitorKNXRF: BROADCAST message");
                 }
 
-                printf("RX_FIFO:");
+                syslog(LOG_INFO, "MonitorKNXRF: RX_FIFO:");
                 for(uint8_t i = 0 ; i < pktlen + 1; i++)   //showes rx_buffer for debug
                 {
-                    printf("0x%02X ", rxbuffer[i]);
+                    syslog(LOG_INFO, "MonitorKNXRF: 0x%02X ", rxbuffer[i]);
                 }
-                printf("| 0x%02X 0x%02X |", rxbuffer[pktlen+1], rxbuffer[pktlen+2]);
-                printf("\r\n");
+                syslog(LOG_INFO, "MonitorKNXRF: | 0x%02X 0x%02X |", rxbuffer[pktlen+1], rxbuffer[pktlen+2]);
 
-                printf("RSSI:%d ", rssi_dbm);
-                printf("LQI:");printf("0x%02X ", lqi);
-                printf("CRC:");printf("0x%02X ", crc);
-                printf("\r\n");
+                syslog(LOG_INFO, "MonitorKNXRF: RSSI:%d ", rssi_dbm);
+                syslog(LOG_INFO, "MonitorKNXRF: LQI: 0x%02X ", lqi);
+                syslog(LOG_INFO, "MonitorKNXRF: CRC: 0x%02X ", crc);
             }
 
             my_addr = rxbuffer[1];                         //set receiver address to my_addr
@@ -927,7 +912,7 @@ uint8_t CC1101::check_acknolage(uint8_t *rxbuffer, uint8_t pktlen, uint8_t sende
         {
             if(rxbuffer[1] == BROADCAST_ADDRESS){                           //if receiver address BROADCAST_ADDRESS skip acknolage
                 if(debug_level > 0){
-                    printf("BROADCAST ACK\r\n");
+                    syslog(LOG_INFO, "MonitorKNXRF: BROADCAST ACK");
                 }
                 return FALSE;
             }
@@ -936,10 +921,10 @@ uint8_t CC1101::check_acknolage(uint8_t *rxbuffer, uint8_t pktlen, uint8_t sende
             crc = check_crc(lqi);
 
             if(debug_level > 0){
-                printf("ACK! ");
-                printf("RSSI:%i ",rssi_dbm);
-                printf("LQI:0x%02X ",lqi);
-                printf("CRC:0x%02X\r\n",crc);
+                syslog(LOG_INFO, "MonitorKNXRF: ACK! ");
+                syslog(LOG_INFO, "MonitorKNXRF: RSSI:%i ",rssi_dbm);
+                syslog(LOG_INFO, "MonitorKNXRF: LQI:0x%02X ",lqi);
+                syslog(LOG_INFO, "MonitorKNXRF: CRC:0x%02X",crc);
             }
             return TRUE;
         }
@@ -1003,7 +988,7 @@ void CC1101::set_mode(uint8_t mode)
                     break;
         case 0x02:
                     spi_write_burst(WRITE_BURST,cc1101_2FSK_32_7_kb,CFG_REGISTER);
-                    break;					
+                    break;
         case 0x03:
                     spi_write_burst(WRITE_BURST,cc1101_GFSK_38_4_kb,CFG_REGISTER);
                     break;
@@ -1058,14 +1043,6 @@ void CC1101::set_ISM(uint8_t ism_freq)
                     freq0=0x3B;
                     spi_write_burst(PATABLE_BURST,patable_power_915,8);
                     break;
-        /*
-        case 0x05:                                                          //2430MHz
-                    freq2=0x5D;
-                    freq1=0x76;
-                    freq0=0x27;
-                    spi_write_burst(PATABLE_BURST,patable_power_2430,8);
-                    break;
-        */
         default:                                                             //default is 868.3MHz
                     freq2=0x21;
                     freq1=0x65;
@@ -1078,7 +1055,7 @@ void CC1101::set_ISM(uint8_t ism_freq)
     spi_write_register(FREQ1,freq1);
     spi_write_register(FREQ0,freq0);
 
-     return;
+    return;
 }
 //-------------------------------[end]------------------------------------------
 
@@ -1114,7 +1091,6 @@ void CC1101::set_modulation_type(uint8_t cfg)
     data = spi_read_register(MDMCFG2);
     data = (data & 0x8F) | (((cfg) << 4) & 0x70);
     spi_write_register(MDMCFG2, data);
-    //printf("MDMCFG2: 0x%02X\n", data);
 }
 //-------------------------------[end]-----------------------------------------
 
@@ -1145,7 +1121,6 @@ void CC1101::set_sync_mode(uint8_t cfg) // 0=no sync word; 1,2 = 16bit sync word
     data = spi_read_register(MDMCFG2);
     data = (data & 0xF8) | (cfg & 0x07);
     spi_write_register(MDMCFG2, data);
-    //printf("MDMCFG2: 0x%02X\n", data);
 }
 //-------------------------------[end]-----------------------------------------
 
@@ -1156,7 +1131,7 @@ void CC1101::set_fec(uint8_t cfg)
     data = spi_read_register(MDMCFG1);
     data = (data & 0x7F) | (((cfg) << 7) & 0x80);
     spi_write_register(MDMCFG1, data);
-    printf("MDMCFG1: 0x%02X\n", data);
+    syslog(LOG_INFO, "MonitorKNXRF: MDMCFG1: 0x%02X", data);
 }
 //-------------------------------[end]------------------------------------------
 
@@ -1167,7 +1142,6 @@ void CC1101::set_data_whitening(uint8_t cfg)
     data = spi_read_register(PKTCTRL0);
     data = (data & 0xBF) | (((cfg) << 6) & 0x40);
     spi_write_register(PKTCTRL0, data);
-    //printf("PKTCTRL0: 0x%02X\n", data);
 }
 //-------------------------------[end]-----------------------------------------
 
@@ -1179,7 +1153,7 @@ void CC1101::set_manchaster_encoding(uint8_t cfg)
     data = (data & 0xF7) | (((cfg) << 3) & 0x08);
     spi_write_register(MDMCFG2, data);
 	if(debug_level > 0){
-		printf("MDMCFG2: 0x%02X\n", data);
+		syslog(LOG_INFO, "MonitorKNXRF: MDMCFG2: 0x%02X", data);
 	}
 }
 //-------------------------------[end]------------------------------------------
@@ -1205,50 +1179,16 @@ uint8_t CC1101::check_crc(uint8_t lqi)
 }
 //-------------------------------[end]------------------------------------------
 
-/*
-//----------------------------[get temp]----------------------------------------
-uint8_t CC1101::get_temp(uint8_t *ptemp_Arr)
-{
-    const uint8_t num_samples = 8;
-    uint16_t adc_result = 0;
-    uint32_t temperature = 0;
-    sidle();                              //sets CC1101 into IDLE
-    spi_write_register(PTEST,0xBF);       //enable temp sensor
-    delay(50);                            //wait a bit
-    for(uint8_t i=0;i<num_samples;i++)    //sampling analog temperature value
-    {
-        adc_result += analogRead(GDO0);
-        delay(1);
-    }
-    adc_result = adc_result / num_samples;
-    //Serial.println(adc_result);
-    temperature = (adc_result * CC1101_TEMP_ADC_MV) / CC1101_TEMP_CELS_CO;
-    ptemp_Arr[0] = temperature / 10;      //cut last digit
-    ptemp_Arr[1] = temperature % 10;      //isolate last digit
-    if(debug_level > 0){
-        Serial.print(F("Temp:"));Serial.print(ptemp_Arr[0]);Serial.print(F("."));Serial.println(ptemp_Arr[1]);
-    }
-    spi_write_register(PTEST,0x7F);       //writes 0x7F back to PTest (app. note)
-    receive();
-    return (*ptemp_Arr);
-}
-*/
-//-------------------------------[end]------------------------------------------
-
 //|==================== SPI Initialisation for CC1101 =========================|
 void CC1101::spi_begin(void)
 {
      int x = 0;
-     //printf ("init SPI bus... ");
      if ((x = wiringPiSPISetup (0, 8000000)) < 0)  //4MHz SPI speed
      {
           if(debug_level > 0){
-          printf ("ERROR: wiringPiSPISetup failed!\r\n");
+          syslog(LOG_ERR, "MonitorKNXRF: ERROR: wiringPiSPISetup failed!");
           }
      }
-     else{
-          //printf ("wiringSPI is up\r\n");
-          }
 }
 //------------------[write register]--------------------------------
 void CC1101::spi_write_register(uint8_t spi_instr, uint8_t value)
@@ -1258,7 +1198,6 @@ void CC1101::spi_write_register(uint8_t spi_instr, uint8_t value)
      tbuf[1] = value;
      uint8_t len = 2;
      wiringPiSPIDataRW (0, tbuf, len) ;
-
      return;
 }
 //|============================ Ein Register lesen ============================|
@@ -1270,8 +1209,6 @@ uint8_t CC1101::spi_read_register(uint8_t spi_instr)
      uint8_t len = 2;
      wiringPiSPIDataRW (0, rbuf, len) ;
      value = rbuf[1];
-     //printf("SPI_arr_0: 0x%02X\n", rbuf[0]);
-     //printf("SPI_arr_1: 0x%02X\n", rbuf[1]);
      return value;
 }
 //|========================= ein Kommando schreiben ========================|
@@ -1279,7 +1216,6 @@ void CC1101::spi_write_strobe(uint8_t spi_instr)
 {
      uint8_t tbuf[1] = {0};
      tbuf[0] = spi_instr;
-     //printf("SPI_data: 0x%02X\n", tbuf[0]);
      wiringPiSPIDataRW (0, tbuf, 1) ;
  }
 //|======= Mehrere hintereinanderliegende Register auf einmal lesen =======|
@@ -1291,7 +1227,6 @@ void CC1101::spi_read_burst(uint8_t spi_instr, uint8_t *pArr, uint8_t len)
      for (uint8_t i=0; i<len ;i++ )
      {
           pArr[i] = rbuf[i+1];
-          //printf("SPI_arr_read: 0x%02X\n", pArr[i]);
      }
 }
 //|======= Mehrere hintereinanderliegende Register auf einmal schreiben =======|
@@ -1302,7 +1237,6 @@ void CC1101::spi_write_burst(uint8_t spi_instr, uint8_t *pArr, uint8_t len)
      for (uint8_t i=0; i<len ;i++ )
      {
           tbuf[i+1] = pArr[i];
-          //printf("SPI_arr_write: 0x%02X\n", tbuf[i+1]);
      }
      wiringPiSPIDataRW (0, tbuf, len + 1) ;
 }

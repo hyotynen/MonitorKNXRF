@@ -98,7 +98,7 @@ void Crc16::updateCrc(uint8_t data)
 	while (j > 0)
 	{
 		uint16_t bit = (uint16_t)(_crc & _msbMask);
-		
+
 		_crc <<= 1;
 
 		if ((data & j) != 0)

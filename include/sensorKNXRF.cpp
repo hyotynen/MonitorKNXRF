@@ -1,10 +1,10 @@
 #include <iostream>
 #include <stdio.h>
 #include <vector>
+#include <syslog.h>
 #include "sensorKNXRF.h"
 #include "cc1101.h"
 #include "Crc16.h"
-
 
 extern uint8_t cc1101_debug;
 
@@ -30,14 +30,14 @@ SensorKNXRF::SensorKNXRF(void) {
 	lqi = 0;
 	next = NULL;
 }
-	
+
 uint32_t SensorKNXRF::getSize(void) {
 	if (this->next) {
 		return (1U+this->next->getSize());
 	} else {
 		return 1U;
 	}
-}	
+}
 
 //------------------------[saveSensorData]--------------------------------------
 uint8_t saveSensorData(uint8_t* dataBuffer, uint32_t len, SensorKNXRF *&sensorList)
@@ -51,39 +51,39 @@ uint8_t saveSensorData(uint8_t* dataBuffer, uint32_t len, SensorKNXRF *&sensorLi
 	Crc16 crc;
 	SensorKNXRF *currentSensor, *previousSensor = NULL;
 	currentSensor = sensorList;
-	
+
 	if(cc1101_debug > 1) {
-		printf("Saving sensor of size %d\r\n", len);
+		syslog(LOG_INFO, "MonitorKNXRF: Saving sensor of size %d\r\n", len);
 	}
-	
+
 	manchesterDecode(dataBuffer, xBuffer, 6);
 	if ((xBuffer[1]==0x44) && (xBuffer[2]==0xFF)) {  // Check for KNX-RF
 		packetLength = (14+((xBuffer[0]-9)%16)+(((xBuffer[0]-9)/16)*18))*2;  //Total data length including CRC
 		manchesterDecode(dataBuffer+6*sizeof(dataBuffer[0]), xBuffer+3*sizeof(xBuffer[0]), packetLength-6); // readout the remaining data
-		packetLength = packetLength>>1; // Divide by two 
+		packetLength = packetLength>>1; // Divide by two
 	}
 
-	// Calulate the CRC on the data
+    // Calulate the CRC on the data
     if (packetLength > 2) {
       crcError = false;
-      startIdx = 0; 
+      startIdx = 0;
       blockIdx = 12;
       crcFailIdx = 0;
       crcFailed = 0;
-      while ((startIdx<packetLength)) {          
+      while ((startIdx<packetLength)) {
           crcValue = xBuffer[min(packetLength-2,startIdx+blockIdx-2)];
           crcValue = (crcValue<<8)+xBuffer[min(packetLength-1,startIdx+blockIdx-1)];
           if (((crc.fastCrc(xBuffer,startIdx,min(packetLength-startIdx-2,blockIdx-2),false,false,0x3D65,0,0,0x8000,0)^0xFFFF)&0xFFFF)!=crcValue) {
             crcError = true;
             crcFailed = crcFailed | (1<<crcFailIdx);
           }
-          startIdx +=blockIdx;         
+          startIdx += blockIdx;
           blockIdx = 18;
           ++crcFailIdx;
       }
     }
 
-	// Save the data to the sensor class array
+    // Save the data to the sensor class array
     if (!crcError) {
         serialNoHighWord    = xBuffer[4];
         serialNoHighWord    = (serialNoHighWord<<8) + xBuffer[5];
@@ -94,24 +94,24 @@ uint8_t saveSensorData(uint8_t* dataBuffer, uint32_t len, SensorKNXRF *&sensorLi
 		while (!updatedData) {
 			if (!currentSensor) {
 				if(cc1101_debug > 1) {
-					printf("Allocating space for: %04X%08X \r\n", serialNoHighWord, serialNoLowWord);
+					syslog(LOG_INFO, "MonitorKNXRF: Allocating space for: %04X%08X \r\n", serialNoHighWord, serialNoLowWord);
 				}
 				try {
 					currentSensor = new SensorKNXRF;
 				} catch (const std::exception& e) {
-					printf("A standard exception was caught, with message %s\r\n" , e.what());
+					syslog(LOG_ERR, "MonitorKNXRF: A standard exception was caught, with message %s\r\n" , e.what());
 					throw;
 				}
 				if (previousSensor) {
 					previousSensor->next = currentSensor;
 				}
 				currentSensor->serialNoHighWord = serialNoHighWord;
-				currentSensor->serialNoLowWord = serialNoLowWord;				
+				currentSensor->serialNoLowWord = serialNoLowWord;
 				if (!sensorList) { // if the list was empty from the beginning, point to the first element
 					sensorList = currentSensor;
 				}
 				if(cc1101_debug > 1) {
-					printf("Added new sensor succesfully: %04X%08X \r\n", serialNoHighWord, serialNoLowWord);
+					syslog(LOG_INFO, "MonitorKNXRF: Added new sensor succesfully: %04X%08X \r\n", serialNoHighWord, serialNoLowWord);
 				}
 			}
 			if (currentSensor->serialNoHighWord == serialNoHighWord && currentSensor->serialNoLowWord == serialNoLowWord) {
@@ -135,7 +135,7 @@ uint8_t saveSensorData(uint8_t* dataBuffer, uint32_t len, SensorKNXRF *&sensorLi
                   currentSensor->sensorData[blockIdx] = (currentSensor->sensorData[blockIdx]<<8) + xBuffer[21];
                 }
                 if (dataBuffer[CC1101_DATA_LEN] >= 128) {  // Conversion from unsigned to signed
-                  currentSensor->rssi = dataBuffer[CC1101_DATA_LEN] - 256; 
+                  currentSensor->rssi = dataBuffer[CC1101_DATA_LEN] - 256;
                 } else {
                   currentSensor->rssi = dataBuffer[CC1101_DATA_LEN];
                 }
@@ -144,91 +144,21 @@ uint8_t saveSensorData(uint8_t* dataBuffer, uint32_t len, SensorKNXRF *&sensorLi
                 currentSensor->lqi = (dataBuffer[CC1101_DATA_LEN+1]&0x7F);
                 updatedData = true;
 				if(cc1101_debug > 1){                                    //debug output messages
-						printf("Updated sensor: %04X%08X \r\n", serialNoHighWord, serialNoLowWord);
+						syslog(LOG_INFO, "MonitorKNXRF: Updated sensor: %04X%08X \r\n", serialNoHighWord, serialNoLowWord);
 				}
 			} else {
 				previousSensor = currentSensor;
 				currentSensor = currentSensor->next;
 			}
-			
 		}
 	}
-	
+
 	return updatedData;
 }
 
 uint16_t transformTemperature(uint16_t data) {
 	if (data&0x800) data = (data&0x7FF)*2;
 	return data;
-}
-
-
-
-// Print first element in sensor data, and reference to the next element
-void sendSensorData(SensorKNXRF *&currentSensor, OpenhabItem *itemList) {
-	if (currentSensor) {
-		SensorKNXRF *tempSensor;
-		uint8_t validData;
-		char charBuffer[16] = {0};
-		std::string itemPrefix,itemName, itemState, itemNo;
-		std::vector <std::string> itemType;
-		
-		itemPrefix.assign("roomThermostat");
-		
-		itemType.push_back("Battery");
-		itemType.push_back("ActTemp");
-		itemType.push_back("SetTemp");
-		itemType.push_back("RSSI");
-		tempSensor = currentSensor;
-		
-		sprintf(charBuffer,"%04X%08X", currentSensor->serialNoHighWord, currentSensor->serialNoLowWord);
-		itemNo.assign(charBuffer);
-		
-		while (itemList) {
-			for (uint16_t i = 0; i < itemType.size(); ++i) {
-				if (itemList->name.compare(itemPrefix + itemType[i] + itemNo) == 0) {
-					switch(i) {
-						case 0 : 
-							sprintf(charBuffer,"%d", currentSensor->batteryOK);
-							validData = 1;
-							break;    
-						case 1 : 
-							if (currentSensor->sensorData[1] != 0xFFFF) {
-								sprintf(charBuffer,"%d", transformTemperature(currentSensor->sensorData[1]));
-								validData = 1;
-							} else {
-								validData = 0;
-							}
-							break;   
-						case 2 : 
-							if (currentSensor->sensorData[2] != 0xFFFF) {
-								sprintf(charBuffer,"%d", transformTemperature(currentSensor->sensorData[2]));
-								validData = 1;
-							} else {
-								validData = 0;
-							}
-							break;    
-						case 3 : 
-							sprintf(charBuffer,"%d", currentSensor->rssi);
-							validData = 1;
-							break;
-						default :
-							validData = 0;
-							break;
-					}
-					if (validData) {
-						itemState.assign(charBuffer);
-						putOpenhabItem(itemPrefix + itemType[i] + itemNo, itemState);
-					}
-				}
-			}
-			itemList = itemList->next;
-		}
-		// Delete this sensor and point to next
-		tempSensor = currentSensor;
-		currentSensor = currentSensor->next;
-		delete tempSensor;
-	}
 }
 
 //------------------------[Manchester decode]-----------------------------------
@@ -240,7 +170,7 @@ uint8_t manchesterDecode(uint8_t *dataSource, uint8_t *dataDest, int32_t lenSour
 
 		if (lenSource%2 > 0) {
 			if(cc1101_debug > 0){                                   	//debut output
-				printf("Bad length to manchester decode (must be even): %d\r\n", lenSource);
+				syslog(LOG_ERR, "MonitorKNXRF: Bad length to manchester decode (must be even): %d\r\n", lenSource);
 			}
 			lenSource -= 1;  //Skip last byte to make it possible to manchester decode
 		}
@@ -249,33 +179,32 @@ uint8_t manchesterDecode(uint8_t *dataSource, uint8_t *dataDest, int32_t lenSour
 				testNibble = testNibble << 2;
 				switch ((dataSource[n]>>(4*(1-m))) & 0xF) {
 					case 0x5 :
-						testNibble = testNibble | 3;				
+						testNibble = testNibble | 3;
 						break;
 					case 0x6 :
-						testNibble = testNibble | 2; 
+						testNibble = testNibble | 2;
 						break;
 					case 0x9 :
 						testNibble = testNibble | 1;
 						break;
 					case 0xA :
-						// testNibble = testNibble | 0; doesn't makes sense, only the break is needed					
 						break;
 					default :
 						if (res == 0) lenSource = 0;  //break for loop if more than one violation is found
 						res = 0;
-						if(cc1101_debug > 1){                                    //debug output messages
-							printf("Manchester violation in byte %d, nibble %d \r\n", n, m);
+						if(cc1101_debug > 1) {  //debug output messages
+							syslog(LOG_INFO, "MonitorKNXRF: Manchester violation in byte %d, nibble %d \r\n", n, m);
 						}
-				}			
+				}
 			}
 			if (n%2 > 0) {
 				dataDest[(n-1)/2] = testNibble;
 				testNibble = 0;
 			}
 		}
-	} else { 
-		if(cc1101_debug > 0){                                   	//debut output
-			printf("Bad length to manchester decode (must be greater than 1): %d\r\n", lenSource);
+	} else {
+		if(cc1101_debug > 0){ //debut output
+			syslog(LOG_ERR, "MonitorKNXRF: Bad length to manchester decode (must be greater than 1): %d\r\n", lenSource);
 		}
 		res = 0;
 	}
